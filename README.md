@@ -57,29 +57,51 @@ chmod +x setup.sh
 
 ### 2. 配置环境变量
 
+**️ 安全提示：永远不要将 `.env` 文件提交到 Git！**
+
+#### 方式一：使用 `.env` 文件（本地开发）
+
 ```bash
 copy .env.example .env    # Windows
 cp .env.example .env      # Linux/Mac
 ```
 
-编辑 `.env` 文件：
-
-**使用本地模型（推荐调试用）：**
+编辑 `.env` 文件，填入你的 API Key：
 ```
-LLM_PROVIDER=ollama
-LLM_MODEL=qwen2.5:1.5b
-```
-
-**使用云端模型（生产环境）：**
-```
-LLM_PROVIDER=zhipu
-LLM_MODEL=glm-4-flash
-ZHIPU_API_KEY=your_api_key_here
+LLM_PROVIDER=deepseek
+LLM_MODEL=deepseek-chat
+DEEPSEEK_API_KEY=sk-你的真实API_KEY
 ```
 
-> 获取API Key: [智谱AI开放平台](https://open.bigmodel.cn/)
+#### 方式二：使用系统环境变量（生产推荐）
 
-### 3. 上传文档
+**Windows PowerShell:**
+```powershell
+[System.Environment]::SetEnvironmentVariable("DEEPSEEK_API_KEY", "sk-xxx", "User")
+[System.Environment]::SetEnvironmentVariable("LLM_PROVIDER", "deepseek", "User")
+```
+
+**Linux/Mac:**
+```bash
+echo 'export DEEPSEEK_API_KEY="sk-xxx"' >> ~/.bashrc
+echo 'export LLM_PROVIDER="deepseek"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+> 获取 DeepSeek API Key: [DeepSeek 开放平台](https://platform.deepseek.com/)
+
+### 3. 启动应用
+
+**使用启动脚本（推荐）：**
+```bash
+start.bat    # Windows
+./start.sh   # Linux/Mac
+```
+
+**或直接运行：**
+```bash
+streamlit run app.py
+```
 
 将人事相关的 TXT 文档放入 `data/hr/` 目录
 
@@ -91,7 +113,7 @@ streamlit run app.py
 
 浏览器会自动打开 http://localhost:8501
 
-## 📖 使用指南
+### 4. 上传文档
 
 ### 上传文档
 
@@ -160,7 +182,7 @@ modules/
 - **RAG框架**：LangChain
 - **向量数据库**：ChromaDB
 - **嵌入模型**：Sentence Transformers
-- **LLM**：智谱AI GLM系列
+- **LLM**：DeepSeek / 智谱AI / Ollama
 - **文档处理**：纯 TXT 格式（初版）
 
 ## 🤖 本地模型支持
@@ -184,27 +206,31 @@ modules/
 ### 推荐模型
 
 | 模型 | 内存占用 | 速度 | 质量 | 适用场景 |
-|------|---------|------|------|---------|
-| **qwen2.5:1.5b** | ~2-3 GB | 快 | 好 | 首选，平衡性能和速度 |
+|------|---------|------|------|---------||
+| **qwen2.5:1.5b** | ~2-3 GB | 快 | 好 | 本地调试，零成本 |
 | qwen2.5:0.5b | ~1 GB | 很快 | 中等 | 快速测试 |
-| gemma2:2b | ~3-4 GB | 中等 | 很好 | 高质量回答 |
 
-### 切换模型
+### 云端模型（推荐）
 
-```bash
-# 下载其他模型
-ollama pull qwen2.5:0.5b
-ollama pull gemma2:2b
+**DeepSeek（首选推荐）** ⭐
+- **性价比最高** - API 价格最低（¥0.001/千Token）
+- **推理能力强** - 适合问答场景
+- **中文支持好** - 国内团队，中文优化
+- **获取 Key**: https://platform.deepseek.com/
 
-# 在 .env 中修改
-LLM_MODEL=qwen2.5:0.5b
+配置示例：
+```env
+LLM_PROVIDER=deepseek
+LLM_MODEL=deepseek-chat
+DEEPSEEK_API_KEY=sk-xxx
 ```
 
-### 云端模型
-
-生产环境建议使用云端模型：
-- 智谱AI：glm-4-flash（速度快，成本低）
-- 在 `.env` 中设置 `LLM_PROVIDER=zhipu`
+**成本对比**（每月 10 万次问答）：
+| 模型 | 月成本 | 推荐度 |
+|------|--------|--------||
+| **DeepSeek** | ¥50 | ⭐⭐⭐⭐⭐ |
+| 通义千问 | ¥200 | ⭐⭐⭐⭐ |
+| 智谱 GLM | ¥250 | ⭐⭐⭐ |
 
 ## 📝 开发说明
 
@@ -223,6 +249,30 @@ LLM_MODEL=qwen2.5:0.5b
 
 在 `core/llm_client.py` 中添加新的 provider 支持
 
+## 🔒 安全最佳实践
+
+### API Key 安全
+
+✅ **必须做到：**
+1. `.env` 文件已添加到 `.gitignore`，不会被提交
+2. 使用系统环境变量代替 `.env` 文件（生产环境）
+3. 定期轮换 API Key
+4. 不要在任何代码中硬编码 API Key
+
+⚠️ **常见错误：**
+- ❌ 将 `.env` 提交到 Git
+- ❌ 在代码中硬编码 API Key
+- ❌ 在日志中输出 API Key
+- ❌ 将 API Key 发送给他人
+
+### 启动脚本
+
+项目提供了安全的启动脚本：
+- `start.bat` (Windows)
+- `start.sh` (Linux/Mac)
+
+启动脚本会自动检查环境变量配置
+
 ## 🌐 GitHub Pages 宣传
 
 可以使用 GitHub Pages 创建项目宣传页面：
@@ -230,6 +280,44 @@ LLM_MODEL=qwen2.5:0.5b
 1. 创建 `docs/` 目录
 2. 添加 `index.md` 宣传页
 3. 在仓库设置中启用 GitHub Pages
+
+## ☁️ 云端部署
+
+### Streamlit Community Cloud（免费）
+
+项目已配置好所有必要文件，可以直接部署到 Streamlit Cloud：
+
+1. **推送代码到 GitHub**
+   ```bash
+   git add .
+   git commit -m "准备部署"
+   git push
+   ```
+
+2. **访问 Streamlit Cloud**
+   - 网址：https://share.streamlit.io/
+   - 点击 "New app"
+   - 选择你的仓库
+
+3. **配置 Secrets**
+   在应用设置中添加：
+   ```toml
+   LLM_PROVIDER = "deepseek"
+   LLM_MODEL = "deepseek-chat"
+   DEEPSEEK_API_KEY = "sk-你的API_KEY"
+   ```
+
+4. **等待部署完成**
+   - 首次部署需要 5-10 分钟
+   - 会自动安装依赖和下载模型
+
+详细部署指南请查看：[DEPLOYMENT.md](DEPLOYMENT.md)
+
+### 注意事项
+
+- Streamlit Cloud 免费版使用临时存储，向量数据库会在重启后丢失
+- 可以上传文档到 `data/hr/` 目录，系统会自动处理
+- 无活跃用户时应用会休眠，下次访问需要 1-2 分钟启动
 
 ## 🤝 贡献指南
 

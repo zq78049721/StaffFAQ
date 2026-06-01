@@ -41,9 +41,9 @@ def initialize_components():
         retriever = Retriever(vector_store=vector_store, top_k=3)
         
         # LLM 客户端
-        # 从环境变量读取配置，默认使用 Ollama 本地模型
-        provider = os.getenv("LLM_PROVIDER", "ollama")
-        model = os.getenv("LLM_MODEL", "qwen2.5:1.5b")
+        # 从环境变量读取配置，默认使用 DeepSeek（性价比高）
+        provider = os.getenv("LLM_PROVIDER", "deepseek")
+        model = os.getenv("LLM_MODEL", "deepseek-chat")
         llm_client = LLMClient(provider=provider, model=model)
         
         # 提示词管理器
@@ -59,6 +59,21 @@ def initialize_components():
     except Exception as e:
         st.error(f"初始化失败：{str(e)}")
         return None
+
+
+def auto_process_if_needed(components):
+    """如果向量存储不存在，自动处理文档（适用于 Streamlit Cloud）"""
+    if not os.path.exists("chroma_db"):
+        # 检查是否有文档
+        if os.path.exists(DATA_DIR) and any(f.endswith('.txt') for f in os.listdir(DATA_DIR)):
+            st.info("检测到文档，正在自动处理...")
+            if process_documents(components):
+                st.success("文档处理完成！")
+                return True
+            else:
+                st.warning("文档处理失败，请手动处理")
+                return False
+    return True
 
 
 def process_documents(components):
@@ -171,6 +186,12 @@ if 'components' not in st.session_state:
 
 if 'messages' not in st.session_state:
     st.session_state.messages = []
+
+# 自动处理文档（Streamlit Cloud 环境）
+if st.session_state.components is None:
+    st.session_state.components = initialize_components()
+    if st.session_state.components:
+        auto_process_if_needed(st.session_state.components)
 
 # 显示聊天记录
 for message in st.session_state.messages:
