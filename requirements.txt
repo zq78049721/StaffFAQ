@@ -1,16 +1,19 @@
-streamlit>=1.28.0,<2.0.0
-langchain>=0.1.0,<0.4.0
-langchain-core>=0.1.0,<0.4.0
-langchain-community>=0.0.10,<0.4.0
-langchain-chroma>=0.1.0,<0.2.0
-langchain-huggingface>=0.0.1,<0.1.0
-langchain-text-splitters>=0.0.1,<0.4.0
-chromadb>=0.4.0,<0.6.0
-sentence-transformers>=2.2.0,<3.0.0
-zhipuai>=2.0.0
-openai>=1.0.0,<2.0.0
-python-dotenv>=1.0.0
-PyYAML>=6.0
-opentelemetry-api>=1.20.0,<2.0.0
-opentelemetry-sdk>=1.20.0,<2.0.0
-opentelemetry-exporter-otlp-proto-grpc>=1.20.0,<2.0.0
+# 核心框架
+streamlit==1.31.0
+langchain==0.1.20
+langchain-core==0.1.52
+langchain-text-splitters==0.0.2
+
+# 向量存储和检索
+langchain-chroma==0.1.4
+chromadb==0.5.23
+
+# 嵌入模型
+sentence-transformers==2.7.0
+
+# LLM 客户端（DeepSeek 通过 OpenAI 兼容接口）
+openai==1.55.0
+
+# 工具库
+python-dotenv==1.0.1
+PyYAML==6.0.2
