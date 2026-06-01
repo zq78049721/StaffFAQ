@@ -4,10 +4,14 @@
 """
 
 import os
+import warnings
 from typing import List
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_ollama import OllamaEmbeddings
+
+# 忽略警告信息
+warnings.filterwarnings('ignore')
 
 
 class VectorStore:
@@ -21,9 +25,15 @@ class VectorStore:
             persist_directory: 持久化目录
         """
         self.persist_directory = persist_directory
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        
+        # 使用 Ollama 的嵌入模型（不需要从 Hugging Face 下载）
+        print("正在加载嵌入模型...")
+        self.embeddings = OllamaEmbeddings(
+            model="qwen2.5:1.5b",
+            base_url="http://localhost:11434"
         )
+        print(" 嵌入模型加载成功")
+        
         self.vector_store = None
     
     def create_from_documents(self, documents: List[Document]):
@@ -39,7 +49,7 @@ class VectorStore:
             embedding=self.embeddings,
             persist_directory=self.persist_directory
         )
-        self.vector_store.persist()
+        # Chroma.from_documents() 已自动持久化，无需手动调用 persist()
         print(f"✓ 向量存储已保存至：{self.persist_directory}")
     
     def load_existing(self) -> bool:

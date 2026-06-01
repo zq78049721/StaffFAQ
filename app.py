@@ -132,52 +132,9 @@ st.title("💼 StaffFAQ - 智能人事助手")
 st.markdown(f"**{MODULE_NAME}** | {MODULE_DESCRIPTION}")
 st.markdown("---")
 
-# 侧边栏
-with st.sidebar:
-    st.header("⚙️ 设置")
-    
-    # 选择提示词版本
-    prompt_version = st.selectbox(
-        "选择服务版本",
-        options=["free", "premium"],
-        format_func=lambda x: " 免费版" if x == "free" else "⭐ 付费版"
-    )
-    
-    st.markdown("---")
-    st.header("📁 文档管理")
-    
-    # 上传文件
-    uploaded_files = st.file_uploader(
-        "上传 TXT 文档",
-        type=['txt'],
-        accept_multiple_files=True
-    )
-    
-    if uploaded_files:
-        # 保存上传的文件
-        os.makedirs(DATA_DIR, exist_ok=True)
-        
-        for uploaded_file in uploaded_files:
-            file_path = os.path.join(DATA_DIR, uploaded_file.name)
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-        
-        st.success(f"已上传 {len(uploaded_files)} 个文件")
-    
-    st.markdown("---")
-    
-    # 处理文档按钮
-    if st.button("🔄 处理文档", type="primary"):
-        components = initialize_components()
-        if components:
-            process_documents(components)
-    
-    # 清空向量存储
-    if st.button("🗑️ 清空数据"):
-        if st.checkbox("确认清空？"):
-            vector_store = VectorStore(persist_directory="chroma_db")
-            vector_store.clear()
-            st.success("已清空")
+# 侧边栏 - Demo 版本隐藏
+# prompt_version 默认使用免费版
+prompt_version = "free"
 
 # 主区域
 # 初始化系统
@@ -189,9 +146,18 @@ if 'messages' not in st.session_state:
 
 # 自动处理文档（Streamlit Cloud 环境）
 if st.session_state.components is None:
-    st.session_state.components = initialize_components()
-    if st.session_state.components:
-        auto_process_if_needed(st.session_state.components)
+    with st.spinner("正在初始化系统..."):
+        st.session_state.components = initialize_components()
+        if st.session_state.components:
+            auto_process_if_needed(st.session_state.components)
+
+# 检查系统状态
+if not st.session_state.components:
+    st.warning("⚠️ 系统初始化失败，请检查：")
+    st.info("1. Ollama 服务是否已启动（运行 `ollama list` 检查）")
+    st.info("2. .env 文件配置是否正确")
+    st.info("3. 查看控制台错误信息")
+    st.stop()
 
 # 显示聊天记录
 for message in st.session_state.messages:
