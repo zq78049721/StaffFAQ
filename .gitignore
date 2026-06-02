@@ -29,3 +29,6 @@ chroma/
 
 # Streamlit secrets（包含 API Key，绝对不能提交！）
 .streamlit/secrets.toml
+
+# 本地模型文件（已精简至 87MB，可以提交）
+# models/

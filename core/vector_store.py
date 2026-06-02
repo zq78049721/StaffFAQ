@@ -8,7 +8,6 @@ import warnings
 from typing import List
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
-from langchain_ollama import OllamaEmbeddings
 
 # 忽略警告信息
 warnings.filterwarnings('ignore')
@@ -26,13 +25,54 @@ class VectorStore:
         """
         self.persist_directory = persist_directory
         
-        # 使用 Ollama 的嵌入模型（不需要从 Hugging Face 下载）
+        # 根据环境变量自动选择嵌入模型
+        llm_provider = os.getenv("LLM_PROVIDER", "deepseek").lower()
+        
         print("正在加载嵌入模型...")
-        self.embeddings = OllamaEmbeddings(
-            model="qwen2.5:1.5b",
-            base_url="http://localhost:11434"
-        )
-        print(" 嵌入模型加载成功")
+        if llm_provider == "ollama":
+            # 本地调试：使用 Ollama 嵌入模型（零成本）
+            from langchain_ollama import OllamaEmbeddings
+            print(" 检测到 LLM_PROVIDER=ollama，使用 Ollama 嵌入模型")
+            self.embeddings = OllamaEmbeddings(
+                model="qwen2.5:1.5b",
+                base_url="http://localhost:11434"
+            )
+        else:
+            # 云端部署：使用 HuggingFace 嵌入模型
+            from langchain_huggingface import HuggingFaceEmbeddings
+            print(f" 检测到 LLM_PROVIDER={llm_provider}，使用 HuggingFace 嵌入模型")
+            
+            # 设置镜像加速下载
+            os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+            os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
+            
+            # 优先使用本地模型（如果存在）
+            local_model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "all-MiniLM-L6-v2")
+            
+            if os.path.exists(local_model_path):
+                print(f" 检测到本地模型：{local_model_path}")
+                self.embeddings = HuggingFaceEmbeddings(
+                    model_name=local_model_path,
+                    model_kwargs={'device': 'cpu'}
+                )
+                print("✓ 本地嵌入模型加载成功")
+            else:
+                print(" 正在从网络下载嵌入模型（首次运行可能需要几分钟）...")
+                try:
+                    self.embeddings = HuggingFaceEmbeddings(
+                        model_name="sentence-transformers/all-MiniLM-L6-v2",
+                        model_kwargs={'device': 'cpu'}
+                    )
+                    print("✓ 嵌入模型下载成功")
+                except Exception as e:
+                    print(f"⚠️ 模型下载失败: {str(e)}")
+                    print(" 尝试使用备用模型...")
+                    self.embeddings = HuggingFaceEmbeddings(
+                        model_name="shibing624/paraphrase-multilingual-MiniLM-L12-v2",
+                        model_kwargs={'device': 'cpu'}
+                    )
+                    print("✓ 备用嵌入模型加载成功")
+        print("✓ 嵌入模型加载成功")
         
         self.vector_store = None
     
