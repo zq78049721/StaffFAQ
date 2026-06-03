@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能人事助手</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- 页面头部 -->
+    <div class="header-section">
+        <h1>💼 智能人事助手</h1>
+        <p class="subtitle">人事问答 · 新员工入职、考勤、休假、福利等人事相关问题</p>
+        <hr>
+    </div>
+
+    <!-- 聊天消息容器 -->
+    <div class="chat-messages-container" id="chat-messages">
+        <!-- 聊天消息将通过 JavaScript 动态添加 -->
+    </div>
+
+    <!-- 输入框容器 -->
+    <div class="input-section">
+        <input type="text" id="user-input" placeholder="请输入你的人事问题..." autocomplete="off" disabled>
+        <button id="send-btn" onclick="sendMessage()" disabled>发送</button>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div class="loading" id="loading" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>正在思考...</span>
+    </div>
+
+    <!-- 页脚 -->
+    <div class="footer">
+        StaffFAQ · <a href="https://github.com/zq78049721/StaffFAQ" target="_blank">GitHub</a>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

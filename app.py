@@ -1,10 +1,15 @@
 """
-StaffFAQ - 智能人事问答系统
-Streamlit 主程序
+FastAPI 后端 API 服务器
+提供 RESTful API 接口供前端调用
 """
 
-import streamlit as st
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import os
+import uuid
 from dotenv import load_dotenv
 
 # 导入核心模块
@@ -15,19 +20,98 @@ from core.llm_client import LLMClient
 from core.prompt_manager import PromptManager
 
 # 导入 HR 模块配置
-from modules.hr.config import DATA_DIR, MODULE_NAME, MODULE_DESCRIPTION
+from modules.hr.config import DATA_DIR
 
 # 加载环境变量
 load_dotenv()
 
-# 页面配置
-st.set_page_config(
-    page_title="StaffFAQ - 智能人事助手",
-    page_icon="",
-    layout="wide"
+app = FastAPI(title="StaffFAQ API", version="1.0.0")
+
+# 添加 CORS 中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+# 挂载静态文件目录
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# 会话存储（内存中，生产环境建议使用 Redis）
+sessions = {}
+
+# 全局组件单例（服务器启动时初始化一次）
+global_components = None
+
+# 初始化任务（用于异步初始化）
+init_task = None
+
+# 初始化状态
+init_status = {
+    'ready': False,
+    'progress': 0,
+    'message': '等待初始化...',
+    'error': None
+}
+
+
+async def background_init():
+    """后台异步初始化组件"""
+    global global_components, init_status
+    try:
+        print("[INFO] 开始后台初始化系统组件...")
+        init_status['progress'] = 10
+        init_status['message'] = '正在加载配置...'
+        
+        global_components = initialize_components()
+        
+        init_status['progress'] = 50
+        init_status['message'] = '正在加载向量数据库...'
+        
+        # 自动处理文档（如果需要）
+        if not os.path.exists("chroma_db"):
+            if os.path.exists(DATA_DIR) and any(f.endswith('.txt') for f in os.listdir(DATA_DIR)):
+                init_status['progress'] = 70
+                init_status['message'] = '正在处理文档...'
+                print("[INFO] 检测到文档，正在处理...")
+                splits = global_components['processor'].process_directory(DATA_DIR)
+                if splits:
+                    global_components['vector_store'].create_from_documents(splits)
+                    print(f"[INFO] 文档处理完成，共 {len(splits)} 个文本块")
+        
+        init_status['progress'] = 100
+        init_status['message'] = '初始化完成！'
+        init_status['ready'] = True
+        print("[INFO] 系统初始化完成！")
+    except Exception as e:
+        init_status['ready'] = False
+        init_status['error'] = str(e)
+        init_status['message'] = f'初始化失败：{str(e)}'
+        print(f"[ERROR] 初始化失败：{str(e)}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """服务器启动时开始后台初始化"""
+    global init_task
+    # 在后台启动初始化任务
+    import asyncio
+    init_task = asyncio.create_task(background_init())
+
+
+# 请求模型
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+
+
+class InitRequest(BaseModel):
+    pass
+
+
+# 初始化系统组件
 def initialize_components():
     """初始化所有组件"""
     try:
@@ -41,7 +125,6 @@ def initialize_components():
         retriever = Retriever(vector_store=vector_store, top_k=3)
         
         # LLM 客户端
-        # 从环境变量读取配置，默认使用 DeepSeek（性价比高）
         provider = os.getenv("LLM_PROVIDER", "deepseek")
         model = os.getenv("LLM_MODEL", "deepseek-chat")
         llm_client = LLMClient(provider=provider, model=model)
@@ -57,44 +140,7 @@ def initialize_components():
             'prompt_manager': prompt_manager
         }
     except Exception as e:
-        st.error(f"初始化失败：{str(e)}")
-        return None
-
-
-def auto_process_if_needed(components):
-    """如果向量存储不存在，自动处理文档（适用于 Streamlit Cloud）"""
-    if not os.path.exists("chroma_db"):
-        # 检查是否有文档
-        if os.path.exists(DATA_DIR) and any(f.endswith('.txt') for f in os.listdir(DATA_DIR)):
-            st.info("检测到文档，正在自动处理...")
-            if process_documents(components):
-                st.success("文档处理完成！")
-                return True
-            else:
-                st.warning("文档处理失败，请手动处理")
-                return False
-    return True
-
-
-def process_documents(components):
-    """处理文档"""
-    with st.spinner("正在处理文档..."):
-        try:
-            # 处理文档
-            splits = components['processor'].process_directory(DATA_DIR)
-            
-            if not splits:
-                st.warning("未找到 TXT 文件，请先上传文档")
-                return False
-            
-            # 创建向量存储
-            components['vector_store'].create_from_documents(splits)
-            st.success(f"✓ 成功处理 {len(splits)} 个文本块")
-            return True
-            
-        except Exception as e:
-            st.error(f"处理失败：{str(e)}")
-            return False
+        raise Exception(f"初始化失败：{str(e)}")
 
 
 def ask_question(components, question, prompt_version="free"):
@@ -125,84 +171,100 @@ def ask_question(components, question, prompt_version="free"):
         return f"处理问题时出错：{str(e)}", []
 
 
-# ==================== 界面 ====================
+# API 路由
 
-# 标题
-st.title("💼 StaffFAQ - 智能人事助手")
-st.markdown(f"**{MODULE_NAME}** | {MODULE_DESCRIPTION}")
-st.markdown("---")
+@app.get("/")
+async def serve_index():
+    """提供首页"""
+    print("[INFO] 收到首页请求")
+    return FileResponse("static/index.html")
 
-# 侧边栏 - Demo 版本隐藏
-# prompt_version 默认使用免费版
-prompt_version = "free"
 
-# 主区域
-# 初始化系统
-if 'components' not in st.session_state:
-    st.session_state.components = None
-
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-
-# 自动处理文档（Streamlit Cloud 环境）
-if st.session_state.components is None:
-    with st.spinner("正在初始化系统..."):
-        st.session_state.components = initialize_components()
-        if st.session_state.components:
-            auto_process_if_needed(st.session_state.components)
-
-# 检查系统状态
-if not st.session_state.components:
-    st.warning("⚠️ 系统初始化失败，请检查：")
-    st.info("1. Ollama 服务是否已启动（运行 `ollama list` 检查）")
-    st.info("2. .env 文件配置是否正确")
-    st.info("3. 查看控制台错误信息")
-    st.stop()
-
-# 显示聊天记录
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# 聊天输入框
-if prompt := st.chat_input("请输入你的人事问题..."):
-    # 添加用户消息
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    
-    # 检查系统是否初始化
-    if not st.session_state.components:
-        st.session_state.components = initialize_components()
-    
-    if not st.session_state.components:
-        with st.chat_message("assistant"):
-            st.markdown(" 系统初始化失败，请检查配置")
-    else:
-        # 处理问题
-        with st.chat_message("assistant"):
-            with st.spinner("正在思考..."):
-                response, results = ask_question(
-                    st.session_state.components,
-                    prompt,
-                    prompt_version
-                )
-                st.markdown(response)
-                
-                # 显示参考来源
-                if results:
-                    with st.expander("📚 查看参考来源"):
-                        for i, result in enumerate(results, 1):
-                            st.write(f"**来源 {i}**（{result['source']}）")
-                            st.write(result['content'])
-                            st.write("---")
+@app.post("/api/init")
+async def init_session():
+    """初始化会话"""
+    print("[INFO] 收到 /api/init 请求")
+    try:
+        # 检查组件是否已初始化
+        if not init_status['ready']:
+            raise HTTPException(status_code=503, detail="系统正在初始化中，请稍候...")
         
-        # 添加助手回复
-        st.session_state.messages.append({"role": "assistant", "content": response})
+        # 创建新会话（共享全局组件）
+        session_id = str(uuid.uuid4())
+        sessions[session_id] = {
+            'components': global_components,
+            'messages': []
+        }
+        
+        return {
+            "success": True,
+            "session_id": session_id,
+            "message": "会话初始化成功"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# 页脚
-st.markdown("---")
-st.markdown(
-    "Made with ❤️ by StaffFAQ Team | "
-    "[GitHub](https://github.com/yourusername/StaffFAQ)"
-)
+
+@app.post("/api/chat")
+async def chat(request: ChatRequest):
+    """聊天接口"""
+    try:
+        session_id = request.session_id
+        message = request.message
+        
+        # 检查会话是否存在
+        if session_id not in sessions:
+            raise HTTPException(status_code=404, detail="会话不存在")
+        
+        session = sessions[session_id]
+        components = session['components']
+        
+        # 添加用户消息到历史
+        session['messages'].append({"role": "user", "content": message})
+        
+        # 处理问题
+        response, results = ask_question(components, message, "free")
+        
+        # 添加助手回复到历史
+        session['messages'].append({"role": "assistant", "content": response})
+        
+        # 格式化参考来源
+        sources = []
+        if results:
+            sources = [
+                {
+                    "source": result.get("source", "未知"),
+                    "content": result.get("content", "")
+                }
+                for result in results
+            ]
+        
+        return {
+            "success": True,
+            "response": response,
+            "sources": sources,
+            "message": "请求成功"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/status")
+async def get_status():
+    """获取初始化状态"""
+    return {
+        "ready": init_status['ready'],
+        "progress": init_status['progress'],
+        "message": init_status['message'],
+        "error": init_status['error']
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    # 使用 reload 模式时需要传入模块路径字符串
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
