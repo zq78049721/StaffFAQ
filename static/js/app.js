@@ -178,11 +178,14 @@ function addMessage(role, content) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `chat-message ${role}`;
     
-    const avatar = role === 'user' ? '👤' : '🤖';
+    const avatar = role === 'user' ? '' : '🤖';
+    
+    // 如果是助手消息，使用 marked.js 渲染 Markdown
+    const messageContent = role === 'assistant' ? marked.parse(content) : content;
     
     messageDiv.innerHTML = `
         <div class="message-avatar">${avatar}</div>
-        <div class="message-content">${content}</div>
+        <div class="message-content">${messageContent}</div>
     `;
     
     container.appendChild(messageDiv);
