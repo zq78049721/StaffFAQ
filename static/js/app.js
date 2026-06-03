@@ -212,7 +212,27 @@ function formatSources(sources) {
 
 // 显示/隐藏加载指示器
 function showLoading(show) {
-    document.getElementById('loading').style.display = show ? 'flex' : 'none';
+    const container = document.getElementById('chat-messages');
+    
+    if (show) {
+        // 创建加载指示器
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'loading-indicator';
+        loadingDiv.className = 'loading';
+        loadingDiv.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span>正在思考...</span>
+        `;
+        container.appendChild(loadingDiv);
+        // 滚动到底部
+        container.scrollTop = container.scrollHeight;
+    } else {
+        // 移除加载指示器
+        const loadingDiv = document.getElementById('loading-indicator');
+        if (loadingDiv) {
+            loadingDiv.remove();
+        }
+    }
 }
 
 // 显示错误消息

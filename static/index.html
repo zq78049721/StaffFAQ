@@ -7,33 +7,29 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <!-- 页面头部 -->
-    <div class="header-section">
-        <h1>💼 智能人事助手</h1>
-        <p class="subtitle">人事问答 · 新员工入职、考勤、休假、福利等人事相关问题</p>
-        <hr>
-    </div>
+    <div class="app-container">
+        <!-- 页面头部 - 左上角简洁布局 -->
+        <div class="header-section">
+            <h1>💼 智能人事助手</h1>
+        </div>
 
-    <!-- 聊天消息容器 -->
-    <div class="chat-messages-container" id="chat-messages">
-        <!-- 聊天消息将通过 JavaScript 动态添加 -->
-    </div>
+        <!-- 聊天消息容器 -->
+        <div class="chat-messages-container" id="chat-messages">
+            <!-- 聊天消息将通过 JavaScript 动态添加 -->
+        </div>
 
-    <!-- 输入框容器 -->
-    <div class="input-section">
-        <input type="text" id="user-input" placeholder="请输入你的人事问题..." autocomplete="off" disabled>
-        <button id="send-btn" onclick="sendMessage()" disabled>发送</button>
-    </div>
-
-    <!-- 加载指示器 -->
-    <div class="loading" id="loading" style="display: none;">
-        <div class="loading-spinner"></div>
-        <span>正在思考...</span>
-    </div>
-
-    <!-- 页脚 -->
-    <div class="footer">
-        StaffFAQ · <a href="https://github.com/zq78049721/StaffFAQ" target="_blank">GitHub</a>
+        <!-- 输入框容器 - DeepSeek 风格 -->
+        <div class="input-section">
+            <div class="input-wrapper">
+                <input type="text" id="user-input" placeholder="请输入你的人事问题..." autocomplete="off" disabled>
+                <button id="send-btn" onclick="sendMessage()" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
     </div>
 
     <script src="/static/js/app.js"></script>
