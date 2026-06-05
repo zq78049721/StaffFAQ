@@ -21,22 +21,29 @@ class Retriever:
         self.vector_store = vector_store
         self.top_k = top_k
     
-    def search(self, query: str) -> List[Dict]:
+    def search(self, query: str, category: str = None) -> List[Dict]:
         """
         检索相关文档
         
         Args:
             query: 查询文本
+            category: 分类标签（可选），如果提供则只检索该类别
             
         Returns:
             相关文档列表，包含内容和相似度分数
         """
         store = self.vector_store.get_vector_store()
         
+        # 构建过滤条件
+        where_filter = None
+        if category and category != 'general':
+            where_filter = {"category": category}
+        
         # 相似度搜索
         results = store.similarity_search_with_score(
             query=query,
-            k=self.top_k
+            k=self.top_k,
+            filter=where_filter
         )
         
         # 格式化结果
@@ -45,6 +52,7 @@ class Retriever:
             formatted_results.append({
                 'content': doc.page_content,
                 'source': doc.metadata.get('source', 'unknown'),
+                'category': doc.metadata.get('category', 'general'),
                 'score': score
             })
         

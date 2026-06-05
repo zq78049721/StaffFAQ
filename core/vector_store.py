@@ -1,13 +1,21 @@
 """
 向量存储模块
-负责文档的向量化和存储
+负责文档的向量存储和检索（ChromaDB 管理）
+
+职责：
+- 创建和管理 ChromaDB 向量数据库
+- 存储文档向量和元数据
+- 提供向量库加载接口
+
+注意：嵌入模型由 EmbeddingManager 统一管理
 """
 
 import os
 import warnings
-from typing import List
+from typing import List, Optional
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
+from core.embedding_manager import EmbeddingManager
 
 # 忽略警告信息
 warnings.filterwarnings('ignore')
@@ -16,77 +24,49 @@ warnings.filterwarnings('ignore')
 class VectorStore:
     """向量存储管理器"""
     
-    def __init__(self, persist_directory: str = "chroma_db"):
+    def __init__(self, persist_directory: str = "chroma_db", embedding_manager: Optional[EmbeddingManager] = None):
         """
         初始化向量存储
         
         Args:
             persist_directory: 持久化目录
+            embedding_manager: 嵌入模型管理器（可选，如果不提供则自动创建）
         """
         self.persist_directory = persist_directory
         
-        # 根据环境变量自动选择嵌入模型
-        llm_provider = os.getenv("LLM_PROVIDER", "deepseek").lower()
-        
-        print("正在加载嵌入模型...")
-        if llm_provider == "ollama":
-            # 本地调试：使用 Ollama 嵌入模型（零成本）
-            from langchain_ollama import OllamaEmbeddings
-            print(" 检测到 LLM_PROVIDER=ollama，使用 Ollama 嵌入模型")
-            self.embeddings = OllamaEmbeddings(
-                model="qwen2.5:1.5b",
-                base_url="http://localhost:11434"
-            )
+        # 使用传入的嵌入模型管理器，或创建默认的
+        if embedding_manager:
+            self.embedding_manager = embedding_manager
         else:
-            # 云端部署：使用 HuggingFace 嵌入模型
-            from langchain_huggingface import HuggingFaceEmbeddings
-            print(f" 检测到 LLM_PROVIDER={llm_provider}，使用 HuggingFace 嵌入模型")
-            
-            # 设置镜像加速下载
-            os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-            os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
-            
-            # 优先使用本地模型（如果存在）
-            local_model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "all-MiniLM-L6-v2")
-            
-            if os.path.exists(local_model_path):
-                print(f" 检测到本地模型：{local_model_path}")
-                self.embeddings = HuggingFaceEmbeddings(
-                    model_name=local_model_path,
-                    model_kwargs={'device': 'cpu'}
-                )
-                print("✓ 本地嵌入模型加载成功")
-            else:
-                print(" 正在从网络下载嵌入模型（首次运行可能需要几分钟）...")
-                try:
-                    self.embeddings = HuggingFaceEmbeddings(
-                        model_name="sentence-transformers/all-MiniLM-L6-v2",
-                        model_kwargs={'device': 'cpu'}
-                    )
-                    print("✓ 嵌入模型下载成功")
-                except Exception as e:
-                    print(f"⚠️ 模型下载失败: {str(e)}")
-                    print(" 尝试使用备用模型...")
-                    self.embeddings = HuggingFaceEmbeddings(
-                        model_name="shibing624/paraphrase-multilingual-MiniLM-L12-v2",
-                        model_kwargs={'device': 'cpu'}
-                    )
-                    print("✓ 备用嵌入模型加载成功")
-        print("✓ 嵌入模型加载成功")
+            self.embedding_manager = EmbeddingManager(
+                model_name="all-MiniLM-L6-v2",
+                device="cpu"
+            )
         
         self.vector_store = None
     
     def create_from_documents(self, documents: List[Document]):
         """
-        从文档创建向量存储
+        从文档创建向量存储（覆盖旧数据）
         
         Args:
             documents: 文档列表
         """
         print("\n正在创建向量存储...")
+        
+        # 如果目录已存在，先删除（覆盖旧数据）
+        if os.path.exists(self.persist_directory):
+            try:
+                import shutil
+                shutil.rmtree(self.persist_directory)
+                print("  已删除旧向量库")
+            except Exception as e:
+                print(f"  ⚠️ 无法删除旧向量库：{str(e)}")
+                print("  将尝试直接覆盖...")
+        
         self.vector_store = Chroma.from_documents(
             documents=documents,
-            embedding=self.embeddings,
+            embedding_function=self.embedding_manager.embeddings,
             persist_directory=self.persist_directory
         )
         # Chroma.from_documents() 已自动持久化，无需手动调用 persist()
@@ -103,7 +83,7 @@ class VectorStore:
             print(f"\n加载已有向量存储：{self.persist_directory}")
             self.vector_store = Chroma(
                 persist_directory=self.persist_directory,
-                embedding_function=self.embeddings
+                embedding_function=self.embedding_manager.embeddings
             )
             return True
         return False

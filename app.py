@@ -18,6 +18,8 @@ from core.vector_store import VectorStore
 from core.retriever import Retriever
 from core.llm_client import LLMClient
 from core.prompt_manager import PromptManager
+from core.question_classifier import QuestionClassifier
+from core.embedding_manager import EmbeddingManager
 
 # 导入 HR 模块配置
 from modules.hr.config import DATA_DIR
@@ -118,7 +120,13 @@ def initialize_components():
         # 文档处理器
         processor = DocumentProcessor(chunk_size=500, chunk_overlap=50)
         
-        # 向量存储
+        # 嵌入模型管理器（统一管理嵌入模型）
+        embedding_manager = EmbeddingManager(
+            model_name="all-MiniLM-L6-v2",
+            device="cpu"
+        )
+        
+        # 向量存储（使用嵌入模型管理器）
         vector_store = VectorStore(persist_directory="chroma_db")
         
         # 检索器
@@ -132,40 +140,69 @@ def initialize_components():
         # 提示词管理器
         prompt_manager = PromptManager(module_name="hr")
         
+        # 问题分类器（传入 LLM 客户端以支持智能分类）
+        question_classifier = QuestionClassifier(llm_client=llm_client)
+        
         return {
             'processor': processor,
             'vector_store': vector_store,
             'retriever': retriever,
             'llm_client': llm_client,
-            'prompt_manager': prompt_manager
+            'prompt_manager': prompt_manager,
+            'question_classifier': question_classifier
         }
     except Exception as e:
         raise Exception(f"初始化失败：{str(e)}")
 
 
 def ask_question(components, question, prompt_version="free"):
-    """回答问题"""
+    """回答问题（支持多标签分类）"""
     try:
-        # 检索相关文档
-        results = components['retriever'].search(question)
+        # 1. 多标签分类用户问题
+        classifier = components['question_classifier']
+        categories = classifier.classify(question, use_llm=True)
         
-        if not results:
+        print(f"[分类] 识别到的类别：{categories}")
+        for cat in categories:
+            print(f"  - {cat}: {classifier.get_category_description(cat)}")
+        
+        # 2. 按多个类别并行检索相关文档
+        all_results = []
+        seen_content = set()  # 去重
+        
+        for category in categories:
+            if category == 'general':
+                # 通用问题，不按类别过滤
+                results = components['retriever'].search(question, category=None)
+            else:
+                results = components['retriever'].search(question, category=category)
+            
+            # 合并结果并去重
+            for result in results:
+                content_key = result['content'][:100]  # 用前 100 字符作为去重标识
+                if content_key not in seen_content:
+                    all_results.append(result)
+                    seen_content.add(content_key)
+        
+        if not all_results:
             return "抱歉，没有找到相关的文档内容。", []
         
-        # 格式化上下文
-        context = components['retriever'].format_context(results)
+        # 3. 格式化上下文
+        context = components['retriever'].format_context(all_results)
         
-        # 构建提示词
+        print(f"[检索] 共检索到 {len(all_results)} 个相关文档片段")
+        
+        # 4. 构建提示词
         prompt = components['prompt_manager'].build_prompt(
             version=prompt_version,
             question=question,
             context=context
         )
         
-        # 生成回答
+        # 5. 生成回答
         response = components['llm_client'].generate(prompt)
         
-        return response, results
+        return response, all_results
         
     except Exception as e:
         return f"处理问题时出错：{str(e)}", []

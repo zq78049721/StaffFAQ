@@ -1,16 +1,30 @@
 """
 文档处理模块
-负责加载、切分 TXT 文档
+负责加载、切分 TXT 文档，并自动添加分类标签
 """
 
 import os
-from typing import List
+import re
+from typing import List, Dict
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 
 class DocumentProcessor:
-    """文档处理器 - 专注于 TXT 文件"""
+    """文档处理器 - 专注于 TXT 文件，自动分类"""
+    
+    # 分类关键词映射（用于自动打标签）
+    CATEGORY_KEYWORDS = {
+        'overtime': ['加班', '延时工作', '超时工作', '1.5 倍', '2 倍', '3 倍'],
+        'annual_leave': ['年假', '年休假', '带薪休假', '年休假'],
+        'maternity': ['产假', '生育', '哺乳', '陪产', '怀孕', '流产'],
+        'probation': ['试用期', '转正', '试用期考核'],
+        'attendance': ['考勤', '迟到', '早退', '旷工', '打卡'],
+        'salary': ['工资', '薪酬', '奖金', '补贴', '年终奖'],
+        'leave': ['请假', '事假', '病假', '婚假', '丧假'],
+        'termination': ['离职', '辞职', '辞退', '解除合同', '补偿金'],
+        'insurance': ['社保', '公积金', '五险一金'],
+    }
     
     def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50):
         """
@@ -26,23 +40,62 @@ class DocumentProcessor:
             separators=["\n\n", "\n", "。", "！", "？", "；", "，", " "]
         )
     
-    def load_txt_file(self, file_path: str) -> Document:
+    def _detect_categories(self, content: str) -> List[str]:
         """
-        加载单个 TXT 文件
+        根据内容自动检测类别
+        
+        Args:
+            content: 文档内容
+            
+        Returns:
+            类别标签列表
+        """
+        categories = set()
+        content_lower = content.lower()
+        
+        for category, keywords in self.CATEGORY_KEYWORDS.items():
+            for keyword in keywords:
+                if keyword in content_lower:
+                    categories.add(category)
+                    break
+        
+        # 如果没有匹配到任何类别，标记为 general
+        if not categories:
+            categories.add('general')
+        
+        return list(categories)
+    
+    def load_txt_file(self, file_path: str) -> List[Document]:
+        """
+        加载单个 TXT 文件，并自动分类
         
         Args:
             file_path: TXT 文件路径
             
         Returns:
-            Document 对象
+            Document 对象列表（一个文件可能对应多个类别）
         """
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        return Document(
-            page_content=content,
-            metadata={"source": os.path.basename(file_path)}
-        )
+        # 检测类别
+        categories = self._detect_categories(content)
+        
+        print(f"  📄 {os.path.basename(file_path)} → 类别：{categories}")
+        
+        # 为每个类别创建一个 Document
+        documents = []
+        for category in categories:
+            doc = Document(
+                page_content=content,
+                metadata={
+                    "source": os.path.basename(file_path),
+                    "category": category
+                }
+            )
+            documents.append(doc)
+        
+        return documents
     
     def load_directory(self, directory: str) -> List[Document]:
         """
@@ -64,9 +117,9 @@ class DocumentProcessor:
             if filename.endswith('.txt'):
                 file_path = os.path.join(directory, filename)
                 try:
-                    doc = self.load_txt_file(file_path)
-                    documents.append(doc)
-                    print(f"✓ 加载：{filename}")
+                    # load_txt_file 现在返回 List[Document]
+                    file_docs = self.load_txt_file(file_path)
+                    documents.extend(file_docs)
                 except Exception as e:
                     print(f"✗ 加载失败 {filename}: {str(e)}")
         
