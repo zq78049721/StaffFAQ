@@ -17,6 +17,9 @@ from langchain_core.documents import Document
 from langchain_chroma import Chroma
 from core.embedding_manager import EmbeddingManager
 
+# 禁用 ChromaDB 遥测（避免 telemetry 警告）
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+
 # 忽略警告信息
 warnings.filterwarnings('ignore')
 
