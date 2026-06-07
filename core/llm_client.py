@@ -14,7 +14,7 @@ except ImportError:
 class LLMClient:
     """LLM 客户端 - 支持 DeepSeek、智谱AI 和 Ollama"""
     
-    def __init__(self, provider: str = "ollama", api_key: Optional[str] = None, model: str = "qwen2.5:1.5b"):
+    def __init__(self, provider: str = "ollama", api_key: Optional[str] = None, model: str = "qwen2.5:1.5b", temperature: float = 0.2):
         """
         初始化 LLM 客户端
         
@@ -22,9 +22,11 @@ class LLMClient:
             provider: 提供商（"deepseek"、"zhipu" 或 "ollama"）
             api_key: API 密钥（云端模型需要）
             model: 模型名称
+            temperature: 温度参数（0.0-1.0，越低越严格）
         """
         self.provider = provider
         self.model = model
+        self.temperature = temperature
         
         if provider == "deepseek":
             self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
@@ -59,47 +61,49 @@ class LLMClient:
         else:
             raise ValueError(f"不支持的提供商: {provider}，请使用 'deepseek'、'zhipu' 或 'ollama'")
     
-    def generate(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate(self, prompt: str, temperature: Optional[float] = None) -> str:
         """
         生成回答
         
         Args:
             prompt: 提示词
-            temperature: 温度参数
+            temperature: 温度参数（如不传则使用初始化时的值）
             
         Returns:
             生成的文本
         """
+        temp = temperature if temperature is not None else self.temperature
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                temperature=temperature
+                temperature=temp
             )
             return response.choices[0].message.content
         except Exception as e:
             return f"❌ LLM 调用失败：{str(e)}"
     
-    def generate_stream(self, prompt: str, temperature: float = 0.7) -> Generator[str, None, None]:
+    def generate_stream(self, prompt: str, temperature: Optional[float] = None) -> Generator[str, None, None]:
         """
         流式生成回答
         
         Args:
             prompt: 提示词
-            temperature: 温度参数
+            temperature: 温度参数（如不传则使用初始化时的值）
             
         Yields:
             生成的文本片段
         """
+        temp = temperature if temperature is not None else self.temperature
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                temperature=temperature,
+                temperature=temp,
                 stream=True
             )
             

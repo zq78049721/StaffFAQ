@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
+import sys
 import uuid
 from dotenv import load_dotenv
 
@@ -25,7 +26,21 @@ from core.logger import Logger
 # 导入 HR 模块配置
 from modules.hr.config import DATA_DIR
 
-# 加载环境变量
+# 支持命令行参数传入 API Key
+if len(sys.argv) > 1:
+    api_key = sys.argv[1]
+    if api_key.startswith("sk-"):
+        print(f"[配置] 从命令行参数读取 API Key: {api_key[:10]}...")
+        os.environ["DEEPSEEK_API_KEY"] = api_key
+        os.environ["LLM_PROVIDER"] = "deepseek"
+        os.environ["LLM_MODEL"] = "deepseek-chat"
+        os.environ["TEMPERATURE"] = "0.2"
+    else:
+        print(f"[警告] API Key 格式不正确，应该以 sk- 开头")
+        print(f"[提示] 使用方式: python app.py sk-xxxxxxxxxxx")
+        sys.exit(1)
+
+# 加载环境变量（如果命令行未传入，则从 .env 读取）
 load_dotenv()
 
 app = FastAPI(title="StaffFAQ API", version="1.0.0")
@@ -136,7 +151,8 @@ def initialize_components():
         # LLM 客户端
         provider = os.getenv("LLM_PROVIDER", "deepseek")
         model = os.getenv("LLM_MODEL", "deepseek-chat")
-        llm_client = LLMClient(provider=provider, model=model)
+        temperature = float(os.getenv("TEMPERATURE", "0.2"))  # 从 .env 读取，默认 0.2
+        llm_client = LLMClient(provider=provider, model=model, temperature=temperature)
         
         # 提示词管理器
         prompt_manager = PromptManager(module_name="hr")
