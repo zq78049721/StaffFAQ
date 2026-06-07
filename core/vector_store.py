@@ -66,7 +66,7 @@ class VectorStore:
         
         self.vector_store = Chroma.from_documents(
             documents=documents,
-            embedding_function=self.embedding_manager.embeddings,
+            embedding=self.embedding_manager.embeddings,
             persist_directory=self.persist_directory
         )
         # Chroma.from_documents() 已自动持久化，无需手动调用 persist()

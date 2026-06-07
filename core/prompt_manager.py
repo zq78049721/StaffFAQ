@@ -55,19 +55,27 @@ class PromptManager:
             raise ValueError(f"提示词版本 '{version}' 不存在，可用版本：{list(self.prompts.keys())}")
         return self.prompts[version]
     
-    def build_prompt(self, version: str, question: str, context: str) -> str:
+    def build_prompt(self, version: str, question: str, context: str, category: str = None) -> str:
         """
-        构建完整的提示词
+        构建完整的提示词（支持按类别加载）
         
         Args:
             version: 提示词版本
             question: 用户问题
             context: 检索到的上下文
+            category: 问题类别（可选），如果提供则优先使用类别专属提示词
             
         Returns:
             完整的提示词字符串
         """
-        prompt_config = self.get_prompt(version)
+        # 如果指定了类别，且存在该类别的提示词，则使用类别专属提示词
+        if category and category in self.prompts:
+            prompt_config = self.prompts[category]
+            print(f"[提示词] 使用类别专属提示词：{category}")
+        else:
+            # 否则使用默认版本（free/premium）
+            prompt_config = self.get_prompt(version)
+            print(f"[提示词] 使用默认提示词：{version}")
         
         system_message = prompt_config.get('system_message', '')
         template = prompt_config.get('template', '')

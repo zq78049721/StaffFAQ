@@ -20,6 +20,7 @@ from core.llm_client import LLMClient
 from core.prompt_manager import PromptManager
 from core.question_classifier import QuestionClassifier
 from core.embedding_manager import EmbeddingManager
+from core.logger import Logger
 
 # 导入 HR 模块配置
 from modules.hr.config import DATA_DIR
@@ -143,20 +144,28 @@ def initialize_components():
         # 问题分类器（传入 LLM 客户端以支持智能分类）
         question_classifier = QuestionClassifier(llm_client=llm_client)
         
+        # 日志管理器
+        logger = Logger(log_dir="logs")
+        
         return {
             'processor': processor,
             'vector_store': vector_store,
             'retriever': retriever,
             'llm_client': llm_client,
             'prompt_manager': prompt_manager,
-            'question_classifier': question_classifier
+            'question_classifier': question_classifier,
+            'logger': logger
         }
     except Exception as e:
         raise Exception(f"初始化失败：{str(e)}")
 
 
 def ask_question(components, question, prompt_version="free"):
-    """回答问题（支持多标签分类）"""
+    """回答问题（支持多标签分类 + 日志记录）"""
+    import time
+    
+    start_time = time.time()
+    
     try:
         # 1. 多标签分类用户问题
         classifier = components['question_classifier']
@@ -185,22 +194,59 @@ def ask_question(components, question, prompt_version="free"):
                     seen_content.add(content_key)
         
         if not all_results:
-            return "抱歉，没有找到相关的文档内容。", []
+            answer = "抱歉，没有找到相关的文档内容。"
+            duration = time.time() - start_time
+            
+            # 记录日志
+            logger = components['logger']
+            logger.log_qa_session(
+                question=question,
+                categories=categories,
+                category_descriptions={
+                    cat: classifier.get_category_description(cat) 
+                    for cat in categories
+                },
+                retrieved_docs=[],
+                llm_model="N/A",
+                answer=answer,
+                duration=duration
+            )
+            
+            return answer, []
         
         # 3. 格式化上下文
         context = components['retriever'].format_context(all_results)
         
         print(f"[检索] 共检索到 {len(all_results)} 个相关文档片段")
         
-        # 4. 构建提示词
+        # 4. 构建提示词（传入类别，自动选择专属提示词）
         prompt = components['prompt_manager'].build_prompt(
             version=prompt_version,
             question=question,
-            context=context
+            context=context,
+            category=categories[0] if categories else None  # 使用第一个类别
         )
         
         # 5. 生成回答
         response = components['llm_client'].generate(prompt)
+        
+        # 6. 计算耗时
+        duration = time.time() - start_time
+        
+        # 7. 记录日志
+        logger = components['logger']
+        logger.log_qa_session(
+            question=question,
+            categories=categories,
+            category_descriptions={
+                cat: classifier.get_category_description(cat) 
+                for cat in categories
+            },
+            retrieved_docs=all_results,
+            llm_model=components['llm_client'].model,
+            answer=response,
+            duration=duration
+        )
         
         return response, all_results
         
